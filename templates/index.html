@@ -1,1 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Hallucination Detector</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-wrapper">
+        <header class="hero">
+            <div class="container">
+                <div class="hero-content">
+                    <h1>Accurate AI Response Verification</h1>
+                    <p>Detect AI hallucinations and verify factual accuracy with our powerful cross-reference engine</p>
+                </div>
+            </div>
+        </header>
 
+        <main class="container">
+            <div class="query-panel">
+                <div class="panel-heading">
+                    <i class="fas fa-search-plus"></i>
+                    <h2>Enter your query</h2>
+                </div>
+                
+                <form method="POST" id="promptForm">
+                    <div class="input-group">
+                        <textarea class="form-control" id="prompt" name="prompt" rows="3" placeholder="Ask a factual question to verify across multiple AI models..." required>{{ prompt | default('') }}</textarea>
+                    </div>
+                    <div class="action-buttons">
+                        <button type="button" class="btn-voice" id="startVoiceBtn">
+                            <i class="fas fa-microphone"></i>
+                            <span>Voice Input</span>
+                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                        </button>
+                        <button type="submit" class="btn-submit" id="submitBtn">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Verify Now</span>
+                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                </form>
+                <div id="status" class="status-indicator">
+                    <i class="fas fa-circle ready"></i>
+                    <span>Ready for verification</span>
+                </div>
+                
+                {% if error %}
+                    <div class="alert-card error">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <div class="alert-message">{{ error }}</div>
+                    </div>
+                {% endif %}
+            </div>
+
+            {% if results and not error %}
+            <div class="results-container">
+                <div class="section-header">
+                    <i class="fas fa-chart-line"></i>
+                    <h2>Analysis Results</h2>
+                </div>
+
+                <div class="result-cards">
+                    <div class="truth-card">
+                        <div class="card-header">
+                            <i class="fas fa-check-circle"></i>
+                            <h3>Verified Truth</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="answer-content">{{ results.correct_answer | default('No answer available') | safe }}</div>
+                            <div class="card-meta">
+                                <span class="meta-label">Source Verification:</span>
+                                <div class="verification-meter high">
+                                    <div class="meter-fill"></div>
+                                </div>
+                            </div>
+                            <div class="explanation">
+                                <i class="fas fa-info-circle"></i>
+                                <p>{{ results.explanation | default('This answer is based on the majority of reliable sources and API responses.') }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if results.hallucinated_answer and results.hallucinated_answer != results.correct_answer %}
+                    <div class="hallucination-card">
+                        <div class="card-header">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <h3>Detected Hallucination</h3>
+                            <span class="source-tag">{{ results.hallucinated_api | capitalize | default('Unknown') }}</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="answer-content">{{ results.hallucinated_answer | default('No answer available') | safe }}</div>
+                            <div class="card-meta">
+                                <span class="meta-label">Hallucination Level:</span>
+                                <div class="verification-meter low">
+                                    <div class="meter-fill"></div>
+                                </div>
+                            </div>
+                            <div class="explanation">
+                                <i class="fas fa-info-circle"></i>
+                                <p>This response contains information not supported by reliable sources.</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="model-card best">
+                        <div class="card-header">
+                            <i class="fas fa-award"></i>
+                            <h3>Most Reliable Response</h3>
+                            <span class="source-tag">{{ results.best_api | capitalize | default('Unknown') }}</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="answer-content">{{ results.best_answer | default('No answer available') | safe }}</div>
+                            <div class="card-meta">
+                                <span class="meta-label">Hallucination Score:</span>
+                                <span class="score">{{ "%.2f"|format(results.best_hallucination * 100) | default('0.00') }}%</span>
+                            </div>
+                            <div class="explanation">
+                                <i class="fas fa-info-circle"></i>
+                                <p>{{ results.explanation | default('Based on comparison with verified sources') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="models-comparison">
+                    <div class="section-header">
+                        <i class="fas fa-robot"></i>
+                        <h2>AI Model Comparison</h2>
+                    </div>
+                    
+                    <div class="tabs">
+                        <div class="tab-nav">
+                            {% for api in ['google', 'groq', 'cohere'] %}
+                            <button class="tab-button {% if loop.first %}active{% endif %}" data-tab="{{ api }}">
+                                <img src="https://{{ 'google.com' if api == 'google' else 'groq.com' if api == 'groq' else 'cohere.ai' }}/favicon.ico" class="api-logo" alt="{{ api|capitalize }} Logo">
+                                <span>{{ api|capitalize }}</span>
+                                <span class="confidence-badge {% if (results['confidence_' + api] | default(0.0)) >= 0.7 %}high{% elif (results['confidence_' + api] | default(0.0)) >= 0.4 %}medium{% else %}low{% endif %}">
+                                    {{ "%.0f"|format(results['confidence_' + api] * 100) | default('0') }}%
+                                </span>
+                            </button>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="tab-content">
+                            {% for api in ['google', 'groq', 'cohere'] %}
+                            <div class="tab-pane {% if loop.first %}active{% endif %}" id="{{ api }}-tab">
+                                <div class="model-response {% if results['hallucination_' + api] | default(0.0) >= 0.5 %}has-hallucination{% endif %}">
+                                    <div class="response-content">
+                                        {{ results[api + '_marked_response'] | default('No response available') | safe }}
+                                    </div>
+                                    
+                                    <div class="metrics-row">
+                                        <div class="metric">
+                                            <span class="metric-label">Confidence Score</span>
+                                            <div class="metric-bar-container">
+                                                <div class="metric-bar confidence" style="width: {{ (results['confidence_' + api] | default(0.0)) * 100 }}%"></div>
+                                                <span class="metric-value">{{ "%.0f"|format(results['confidence_' + api] * 100) | default('0') }}%</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="metric">
+                                            <span class="metric-label">Hallucination Score</span>
+                                            <div class="metric-bar-container">
+                                                <div class="metric-bar hallucination" style="width: {{ (results['hallucination_' + api] | default(0.0)) * 100 }}%"></div>
+                                                <span class="metric-value">{{ "%.0f"|format(results['hallucination_' + api] * 100) | default('0') }}%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="explanation">
+                                        <i class="fas fa-info-circle"></i>
+                                        <p>{{ results[api + '_explanation'] | default('Based on source verification') }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analysis-grid">
+                    <div class="chart-card">
+                        <div class="card-header">
+                            <i class="fas fa-chart-pie"></i>
+                            <h3>Confidence Analysis</h3>
+                        </div>
+                        <div class="card-body">
+                            <input type="hidden" id="confidenceGoogle" value="{{ results.confidence_google | default(0.0) }}">
+                            <input type="hidden" id="confidenceGroq" value="{{ results.confidence_groq | default(0.0) }}">
+                            <input type="hidden" id="confidenceCohere" value="{{ results.confidence_cohere | default(0.0) }}">
+                            <div class="chart-container">
+                                <canvas id="confidencePieChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <div class="card-header">
+                            <i class="fas fa-chart-radar"></i>
+                            <h3>Hallucination Detection</h3>
+                        </div>
+                        <div class="card-body">
+                            <input type="hidden" id="hallucinationGoogle" value="{{ results.hallucination_google | default(0.0) }}">
+                            <input type="hidden" id="hallucinationGroq" value="{{ results.hallucination_groq | default(0.0) }}">
+                            <input type="hidden" id="hallucinationCohere" value="{{ results.hallucination_cohere | default(0.0) }}">
+                            <div class="chart-container">
+                                <canvas id="hallucinationRadarChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <div class="card-header">
+                            <i class="fas fa-chart-bar"></i>
+                            <h3>Hallucination Comparison</h3>
+                        </div>
+                        <div class="card-body">
+                            <input type="hidden" id="hallucinationGoogle" value="{{ results.hallucination_google | default(0.0) }}">
+                            <input type="hidden" id="hallucinationGroq" value="{{ results.hallucination_groq | default(0.0) }}">
+                            <input type="hidden" id="hallucinationCohere" value="{{ results.hallucination_cohere | default(0.0) }}">
+                            <div class="chart-container">
+                                <canvas id="hallucinationBarChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="references-card">
+                        <div class="card-header">
+                            <i class="fas fa-link"></i>
+                            <h3>Verified Sources</h3>
+                        </div>
+                        <div class="card-body">
+                            <ul class="reference-list">
+                                <li>
+                                    <img src="https://wikipedia.org/favicon.ico" class="ref-logo" alt="Wikipedia Logo">
+                                    <div class="ref-details">
+                                        <h4>Wikipedia</h4>
+                                        <a href="{{ results.wiki_url | default('#') }}" target="_blank">{{ results.wiki_url | default('No reference available') }}</a>
+                                        <div class="reliability-meter" style="width: {{ results.wiki_reliability * 100 | default(0) }}%"></div>
+                                    </div>
+                                    <div class="reliability-score">{{ "%.0f"|format(results.wiki_reliability * 100) | default('0') }}%</div>
+                                </li>
+                                
+                                <li>
+                                    <img src="https://duckduckgo.com/favicon.ico" class="ref-logo" alt="DuckDuckGo Logo">
+                                    <div class="ref-details">
+                                        <h4>DuckDuckGo</h4>
+                                        <a href="{{ results.ddg_url | default('#') }}" target="_blank">{{ results.ddg_url | default('No reference available') }}</a>
+                                        <div class="reliability-meter" style="width: {{ results.ddg_reliability * 100 | default(0) }}%"></div>
+                                    </div>
+                                    <div class="reliability-score">{{ "%.0f"|format(results.ddg_reliability * 100) | default('0') }}%</div>
+                                </li>
+                                
+                                <li>
+                                    <img src="https://www.google.com/favicon.ico" class="ref-logo" alt="Google Logo">
+                                    <div class="ref-details">
+                                        <h4>Google Search</h4>
+                                        <a href="{{ results.google_url | default('#') }}" target="_blank">{{ results.google_url | default('No reference available') }}</a>
+                                        <div class="reliability-meter" style="width: {{ results.google_reliability * 100 | default(0) }}%"></div>
+                                    </div>
+                                    <div class="reliability-score">{{ "%.0f"|format(results.google_reliability * 100) | default('0') }}%</div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    {% if results.prompt_complexity.warning or results.ensemble_warnings or results.logical_inferences %}
+                    <div class="insights-card">
+                        <div class="card-header">
+                            <i class="fas fa-lightbulb"></i>
+                            <h3>Additional Insights</h3>
+                        </div>
+                        <div class="card-body">
+                            <ul class="insights-list">
+                                {% if results.prompt_complexity.warning %}
+                                <li class="warning">
+                                    <i class="fas fa-exclamation-circle"></i>
+                                    <span>{{ results.prompt_complexity.warning | default('') }}</span>
+                                </li>
+                                {% endif %}
+                                
+                                {% for warning in results.ensemble_warnings | default([]) %}
+                                <li class="warning">
+                                    <i class="fas fa-exclamation-circle"></i>
+                                    <span>{{ warning }}</span>
+                                </li>
+                                {% endfor %}
+                                
+                                {% for inference in results.logical_inferences | default([]) %}
+                                <li class="inference">
+                                    <i class="fas fa-brain"></i>
+                                    <span>{{ inference }}</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </main>
+        
+        <footer>
+            <div class="container">
+                <div class="footer-content">
+                    <div class="footer-text">
+                        <p>&copy; 2025 Advanced AI Hallucination Detection.</p>
+                    </div>
+                    <div class="footer-links">
+                        <a href="#"><i class="fab fa-github"></i></a>
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fas fa-envelope"></i></a>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Report Customization Modal -->
+    <div class="modal fade" id="reportCustomizeModal" tabindex="-1" aria-labelledby="reportCustomizeModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="reportCustomizeModalLabel">Customize Report</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <form id="reportCustomizeForm">
+              <div class="mb-2">
+                <label class="form-label">Color Scheme</label>
+                <select class="form-select" id="colorScheme" name="color_scheme">
+                  <option value="default">Default</option>
+                  <option value="dark">Dark</option>
+                  <option value="blue">Blue</option>
+                  <option value="green">Green</option>
+                </select>
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Sections to Include</label>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="section_prompt" id="sectionPrompt" checked>
+                  <label class="form-check-label" for="sectionPrompt">Prompt</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="section_summary" id="sectionSummary" checked>
+                  <label class="form-check-label" for="sectionSummary">Results Summary</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="section_references" id="sectionReferences" checked>
+                  <label class="form-check-label" for="sectionReferences">External References</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="section_api" id="sectionAPI" checked>
+                  <label class="form-check-label" for="sectionAPI">API Responses</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="section_visual" id="sectionVisual" checked>
+                  <label class="form-check-label" for="sectionVisual">Data Visualizations</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="section_insights" id="sectionInsights" checked>
+                  <label class="form-check-label" for="sectionInsights">Insights</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="section_analysis" id="sectionAnalysis" checked>
+                  <label class="form-check-label" for="sectionAnalysis">Advanced Analysis</label>
+                </div>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-primary" id="applyReportCustomization">Apply</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add a button to open the modal and a hidden form for report generation -->
+    <form action="/report" method="POST" id="reportForm">
+      <input type="hidden" name="prompt" value="{{ prompt }}">
+      <input type="hidden" name="color_scheme" id="hiddenColorScheme" value="default">
+      <input type="hidden" name="sections" id="hiddenSections" value="prompt,summary,references,api,visual,insights,analysis">
+      <button type="button" class="btn btn-outline-primary mt-3" data-bs-toggle="modal" data-bs-target="#reportCustomizeModal">Customize & Download Report</button>
+    </form>
+
+    <script>
+    // Handle customization modal and form
+    document.addEventListener('DOMContentLoaded', function() {
+      const applyBtn = document.getElementById('applyReportCustomization');
+      const reportForm = document.getElementById('reportForm');
+      applyBtn.addEventListener('click', function() {
+        // Collect color scheme
+        const colorScheme = document.getElementById('colorScheme').value;
+        document.getElementById('hiddenColorScheme').value = colorScheme;
+        // Collect sections
+        const sectionIds = [
+          'sectionPrompt','sectionSummary','sectionReferences','sectionAPI','sectionVisual','sectionInsights','sectionAnalysis'
+        ];
+        const selected = sectionIds.filter(id => document.getElementById(id).checked)
+          .map(id => id.replace('section','').toLowerCase());
+        document.getElementById('hiddenSections').value = selected.join(',');
+        // Submit the form
+        reportForm.submit();
+      });
+    });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
