@@ -1,0 +1,13 @@
+flask
+google-generativeai
+groq
+wikipedia
+duckduckgo_search
+requests
+beautifulsoup4
+sentence-transformers
+keybert
+autocorrect
+cohere
+nltk
+numpy
