@@ -93,9 +93,9 @@ python app.py
 
 The app runs at [http://localhost:8000](http://localhost:8000) by default.
 
-<img src="templates/verify.png" width="500" height="600"/>
-<img src="templates/comparison.png" width="500" height="600"/>
-<img src="templates/visual.png" width="500" height="600"/>
+<img src="templates/verify.png" width="500" />
+<img src="templates/comparison.png" width="500"/>
+<img src="templates/visual.png" width="500"/>
 
 
 ---
