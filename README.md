@@ -57,8 +57,8 @@ pip install -r requirements.txt
 1. **Clone the repository:**
 
    ```bash
-   git clone https://github.com/yourusername/ai-verifier.git
-   cd ai-verifier
+   git clone https://github.com/rMohamedIbrahim/AI-Hallucination-Detection.git
+   cd AI-Hallucination-Detection
    ```
 
 2. **Set up environment variables:**  
@@ -92,6 +92,11 @@ python app.py
 ```
 
 The app runs at [http://localhost:8000](http://localhost:8000) by default.
+
+<img src="templates/verify.png" width="200"/>
+<img src="templates/comparison.png" width="200"/>
+<img src="templates/visual.png" width="200"/>
+
 
 ---
 
