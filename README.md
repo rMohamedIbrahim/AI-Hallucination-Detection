@@ -140,6 +140,3 @@ The app runs at [http://localhost:8000](http://localhost:8000) by default.
 - **Dependency Issues:** Double-check `requirements.txt` and your Python environment.
 
 ---
-
-
----
