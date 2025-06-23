@@ -141,10 +141,5 @@ The app runs at [http://localhost:8000](http://localhost:8000) by default.
 
 ---
 
-## 📄 License
-
-This project is for educational and research purposes.  
-See [LICENSE](LICENSE) for details.
-
 
 ---
